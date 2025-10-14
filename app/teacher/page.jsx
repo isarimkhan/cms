@@ -11,55 +11,44 @@ import {
   BarChart3,
   Menu,
   ChevronLeft,
+  Pen,
+  StickyNote,
+  List,
+  FilePen,
+  Pencil,
+  UploadCloud,
+  ListOrdered,
+  Megaphone,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import Header from "../components/header";
 
-export default function AdminDashboard() {
+export default function TeacherDashboard() {
   const [isOpen, setIsOpen] = useState(true);
   const pathname = usePathname();
 
   const menuItems = [
-    {
-      label: "Manage Courses",
-      icon: <Book size={22} />,
-      href: "/admin/manage-course",
-    },
-    {
-      label: "Manage Teachers",
-      icon: <Users size={22} />,
-      href: "/admin/manage-teachers",
-    },
-    {
-      label: "Manage Students",
-      icon: <GraduationCap size={22} />,
-      href: "/admin/manage-students",
-    },
-    {
-      label: "View Reports",
-      icon: <ClipboardList size={22} />,
-      href: "/admin/view-reports",
-    },
-    {
-      label: "Manage Users",
-      icon: <Users size={22} />,
-      href: "/admin/manage-users",
-    },
-    {
-      label: "Assign Courses",
-      icon: <Book size={22} />,
-      href: "/admin/assign-courses",
-    },
-    {
-      label: "Manage Roles",
-      icon: <UserCog size={22} />,
-      href: "/admin/manage-roles",
-    },
-    {
-      label: "Analytics",
-      icon: <BarChart3 size={22} />,
-      href: "/admin/analytics",
-    },
+     {
+    label: "Manage Marks",
+    icon: <Pencil size={22} />,
+    href: "/Teacher/manage-marks",
+  },
+  {
+    label: "Upload Assignment",
+    icon: <UploadCloud size={22} />,
+    href: "/Teacher/manage-teachers",
+  },
+  {
+    label: "View Class List",
+    icon: <ListOrdered size={22} />,
+    href: "/Teacher/manage-students",
+  },
+  {
+    label: "Post Announcement",
+    icon: <Megaphone size={22} />,
+    href: "/Teacher/view-reports",
+  },
+    
   ];
 
   return (
@@ -77,7 +66,7 @@ export default function AdminDashboard() {
               !isOpen && "opacity-0 hidden"
             }`}
           >
-            Admin
+            Teacher
           </h1>
           <button
             onClick={() => setIsOpen(!isOpen)}
@@ -120,7 +109,7 @@ export default function AdminDashboard() {
         {/* Main Content Scrollable */}
         <div className="flex-1 p-8 text-white overflow-y-auto">
           <h1 className="text-3xl font-bold mb-4">
-            Welcome to Admin Dashboard
+            Welcome to Teacher Dashboard
           </h1>
           <p className="text-gray-200">
             Select any section from the sidebar to start managing.
