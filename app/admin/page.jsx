@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import {
   Book,
   Users,
@@ -12,63 +11,72 @@ import {
   Menu,
   ChevronLeft,
 } from "lucide-react";
-import { usePathname } from "next/navigation";
 import Header from "../components/header";
+
+// ✅ Import the components
+import ManageCourses from "../components/admin/ManageCourses";
+import ManageTeachers from "../components/admin/ManageTeachers";
+import ManageStudents from "../components/admin/ManageStudents";
+import ViewReports from "../components/admin/ViewReports";
+import ManageUsers from "../components/admin/ManageUsers";
+import AssignCourses from "../components/admin/AssignCourses";
+import ManageRoles from "../components/admin/ManageRoles";
+import Analytics from "../components/admin/Analytics";
 
 export default function AdminDashboard() {
   const [isOpen, setIsOpen] = useState(true);
-  const pathname = usePathname();
+  const [activeComponent, setActiveComponent] = useState("dashboard");
 
   const menuItems = [
-    {
-      label: "Manage Courses",
-      icon: <Book size={22} />,
-      href: "/admin/manage-course",
-    },
-    {
-      label: "Manage Teachers",
-      icon: <Users size={22} />,
-      href: "/admin/manage-teachers",
-    },
-    {
-      label: "Manage Students",
-      icon: <GraduationCap size={22} />,
-      href: "/admin/manage-students",
-    },
-    {
-      label: "View Reports",
-      icon: <ClipboardList size={22} />,
-      href: "/admin/view-reports",
-    },
-    {
-      label: "Manage Users",
-      icon: <Users size={22} />,
-      href: "/admin/manage-users",
-    },
-    {
-      label: "Assign Courses",
-      icon: <Book size={22} />,
-      href: "/admin/assign-courses",
-    },
-    {
-      label: "Manage Roles",
-      icon: <UserCog size={22} />,
-      href: "/admin/manage-roles",
-    },
-    {
-      label: "Analytics",
-      icon: <BarChart3 size={22} />,
-      href: "/admin/analytics",
-    },
+    { label: "Manage Courses", icon: <Book size={22} />, key: "courses" },
+    { label: "Manage Teachers", icon: <Users size={22} />, key: "teachers" },
+    { label: "Manage Students", icon: <GraduationCap size={22} />, key: "students" },
+    { label: "View Reports", icon: <ClipboardList size={22} />, key: "reports" },
+    { label: "Manage Users", icon: <Users size={22} />, key: "users" },
+    { label: "Assign Courses", icon: <Book size={22} />, key: "assign" },
+    { label: "Manage Roles", icon: <UserCog size={22} />, key: "roles" },
+    { label: "Analytics", icon: <BarChart3 size={22} />, key: "analytics" },
   ];
 
+  const renderContent = () => {
+    switch (activeComponent) {
+      case "courses":
+        return <ManageCourses />;
+      case "teachers":
+        return <ManageTeachers />;
+      case "students":
+        return <ManageStudents />;
+      case "reports":
+        return <ViewReports />;
+      case "users":
+        return <ManageUsers />;
+      case "assign":
+        return <AssignCourses />;
+      case "roles":
+        return <ManageRoles />;
+      case "analytics":
+        return <Analytics />;
+      default:
+        return (
+          <>
+            <h1 className="text-3xl font-bold mb-4">
+              Welcome to Admin Dashboard
+            </h1>
+            <p className="text-gray-200">
+              Select any section from the sidebar to start managing.
+            </p>
+          </>
+        );
+    }
+  };
+
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500">
-      {/* Sidebar - Fixed Full Height from Top */}
+    <div className="flex min-h-screen h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 overflow-hidden">
+      {/* Sidebar */}
       <div
         className={`${
           isOpen ? "w-64" : "w-20"
-        } bg-white/10 backdrop-blur-lg border-r border-white/20 p-4 flex flex-col transition-all duration-300 h-screen sticky top-0`}
+        } bg-white/10 backdrop-blur-lg border-r border-white/20 p-4 flex flex-col transition-all duration-300 h-full sticky top-0 overflow-hidden`}
       >
         {/* Sidebar Header */}
         <div className="flex justify-between items-center mb-10">
@@ -87,44 +95,38 @@ export default function AdminDashboard() {
           </button>
         </div>
 
-        {/* Menu Items */}
-        <nav className="flex flex-col gap-2 overflow-y-auto">
-          {menuItems.map((item, index) => (
-            <Link key={index} href={item.href}>
-              <div
-                className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all duration-300 ${
-                  pathname === item.href
-                    ? "bg-white/30 scale-105 shadow-lg"
-                    : "text-white hover:bg-white/20"
+        {/* Menu Items — only sidebar scrolls */}
+        <nav className="flex flex-col gap-2 overflow-y-auto h-full pr-2">
+          {menuItems.map((item) => (
+            <div
+              key={item.key}
+              onClick={() => setActiveComponent(item.key)}
+              className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all duration-300 ${
+                activeComponent === item.key
+                  ? "bg-white/30 scale-105 shadow-lg"
+                  : "text-white hover:bg-white/20"
+              }`}
+            >
+              <div className="shrink-0">{item.icon}</div>
+              <span
+                className={`font-medium transition-all duration-300 ${
+                  !isOpen && "opacity-0 hidden"
                 }`}
               >
-                <div className="shrink-0">{item.icon}</div>
-                <span
-                  className={`font-medium transition-all duration-300 ${
-                    !isOpen && "opacity-0 hidden"
-                  }`}
-                >
-                  {item.label}
-                </span>
-              </div>
-            </Link>
+                {item.label}
+              </span>
+            </div>
           ))}
         </nav>
       </div>
 
-      {/* Main Area (Header + Content) */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden">
-        {/* Header on top of main content only */}
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
         <Header />
-
-        {/* Main Content Scrollable */}
-        <div className="flex-1 p-8 text-white overflow-y-auto">
-          <h1 className="text-3xl font-bold mb-4">
-            Welcome to Admin Dashboard
-          </h1>
-          <p className="text-gray-200">
-            Select any section from the sidebar to start managing.
-          </p>
+        <div className="flex-1 p-8 text-white overflow-hidden h-full">
+          <div className="h-full w-full overflow-hidden">
+            {renderContent()}
+          </div>
         </div>
       </div>
     </div>
