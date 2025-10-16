@@ -1,7 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, X, Pencil, Trash2 } from "lucide-react";
+import { db } from "../../../lib/firebase";
+import {
+  collection,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  onSnapshot,
+} from "firebase/firestore";
 
 export default function ManageTeachers() {
   const [teachers, setTeachers] = useState([]);
@@ -24,47 +33,66 @@ export default function ManageTeachers() {
     file: null,
   });
 
-  // ✅ Add New Teacher
-  const handleAddTeacher = () => {
-    if (!formData.firstName || !formData.lastName) return;
+  // ✅ Real-time Listener
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, "teachers"), (snapshot) => {
+      const data = snapshot.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      }));
+      setTeachers(data);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // ✅ Add New Teacher to Firestore
+  const handleAddTeacher = async () => {
+    if (!formData.firstName || !formData.lastName) {
+      alert("Please fill all required fields");
+      return;
+    }
 
     const newTeacher = {
-      ...formData,
-      id: Date.now(),
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      email: formData.email,
+      phone: formData.phone,
+      address: formData.address,
+      education: formData.education,
+      dob: formData.dob,
+      salary: formData.salary,
+      dutyTime: formData.dutyTime,
       picture:
         formData.file && typeof formData.file !== "string"
           ? URL.createObjectURL(formData.file)
           : formData.picture,
     };
 
-    setTeachers([...teachers, newTeacher]);
+    await addDoc(collection(db, "teachers"), newTeacher);
     resetForm();
     setShowAddModal(false);
   };
 
   // ✅ Update Teacher
-  const handleUpdateTeacher = () => {
-    setTeachers(
-      teachers.map((t) =>
-        t.id === formData.id
-          ? {
-              ...formData,
-              picture:
-                formData.file && typeof formData.file !== "string"
-                  ? URL.createObjectURL(formData.file)
-                  : formData.picture,
-            }
-          : t
-      )
-    );
+  const handleUpdateTeacher = async () => {
+    const teacherRef = doc(db, "teachers", formData.id);
+
+    await updateDoc(teacherRef, {
+      ...formData,
+      picture:
+        formData.file && typeof formData.file !== "string"
+          ? URL.createObjectURL(formData.file)
+          : formData.picture,
+    });
+
     resetForm();
     setShowAddModal(false);
     setIsEditing(false);
   };
 
   // ✅ Delete Teacher
-  const handleDeleteTeacher = (id) => {
-    setTeachers(teachers.filter((t) => t.id !== id));
+  const handleDeleteTeacher = async (id) => {
+    await deleteDoc(doc(db, "teachers", id));
     setShowDetailModal(null);
   };
 
@@ -78,7 +106,7 @@ export default function ManageTeachers() {
     setShowAddModal(true);
   };
 
-  // ✅ Reset
+  // ✅ Reset Form
   const resetForm = () => {
     setFormData({
       id: null,
@@ -170,80 +198,37 @@ export default function ManageTeachers() {
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block mb-1 text-sm opacity-80">First Name</label>
-                <input
-                  type="text"
-                  value={formData.firstName}
-                  onChange={(e) =>
-                    setFormData({ ...formData, firstName: e.target.value })
-                  }
-                  className="w-full bg-transparent border border-white/40 p-2 rounded"
-                />
-              </div>
+              {[
+                { label: "First Name", key: "firstName" },
+                { label: "Last Name", key: "lastName" },
+                { label: "Email", key: "email", colSpan: 2 },
+                { label: "Phone", key: "phone", colSpan: 2 },
+                { label: "Address", key: "address", colSpan: 2 },
+                { label: "Education", key: "education", colSpan: 2 },
+              ].map(({ label, key, colSpan }) => (
+                <div
+                  key={key}
+                  className={colSpan === 2 ? "col-span-2" : undefined}
+                >
+                  <label className="block mb-1 text-sm opacity-80">
+                    {label}
+                  </label>
+                  <input
+                    type="text"
+                    value={formData[key]}
+                    onChange={(e) =>
+                      setFormData({ ...formData, [key]: e.target.value })
+                    }
+                    className="w-full bg-transparent border border-white/40 p-2 rounded"
+                  />
+                </div>
+              ))}
 
-              <div>
-                <label className="block mb-1 text-sm opacity-80">Last Name</label>
-                <input
-                  type="text"
-                  value={formData.lastName}
-                  onChange={(e) =>
-                    setFormData({ ...formData, lastName: e.target.value })
-                  }
-                  className="w-full bg-transparent border border-white/40 p-2 rounded"
-                />
-              </div>
-
+              {/* DOB */}
               <div className="col-span-2">
-                <label className="block mb-1 text-sm opacity-80">Email</label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) =>
-                    setFormData({ ...formData, email: e.target.value })
-                  }
-                  className="w-full bg-transparent border border-white/40 p-2 rounded"
-                />
-              </div>
-
-              <div className="col-span-2">
-                <label className="block mb-1 text-sm opacity-80">Phone</label>
-                <input
-                  type="text"
-                  value={formData.phone}
-                  onChange={(e) =>
-                    setFormData({ ...formData, phone: e.target.value })
-                  }
-                  className="w-full bg-transparent border border-white/40 p-2 rounded"
-                />
-              </div>
-
-              <div className="col-span-2">
-                <label className="block mb-1 text-sm opacity-80">Address</label>
-                <input
-                  type="text"
-                  value={formData.address}
-                  onChange={(e) =>
-                    setFormData({ ...formData, address: e.target.value })
-                  }
-                  className="w-full bg-transparent border border-white/40 p-2 rounded"
-                />
-              </div>
-
-              <div className="col-span-2">
-                <label className="block mb-1 text-sm opacity-80">Education</label>
-                <input
-                  type="text"
-                  value={formData.education}
-                  onChange={(e) =>
-                    setFormData({ ...formData, education: e.target.value })
-                  }
-                  className="w-full bg-transparent border border-white/40 p-2 rounded"
-                />
-              </div>
-
-              <div className="col-span-2">
-                <label className="block mb-1 text-sm opacity-80">Date of Birth</label>
+                <label className="block mb-1 text-sm opacity-80">
+                  Date of Birth
+                </label>
                 <input
                   type="date"
                   value={formData.dob}
@@ -254,6 +239,7 @@ export default function ManageTeachers() {
                 />
               </div>
 
+              {/* Salary */}
               <div className="col-span-2">
                 <label className="block mb-1 text-sm opacity-80">Salary</label>
                 <input
@@ -266,8 +252,11 @@ export default function ManageTeachers() {
                 />
               </div>
 
+              {/* Duty Time */}
               <div className="col-span-2">
-                <label className="block mb-1 text-sm opacity-80">Duty Time</label>
+                <label className="block mb-1 text-sm opacity-80">
+                  Duty Time
+                </label>
                 <select
                   value={formData.dutyTime}
                   onChange={(e) =>
@@ -307,7 +296,7 @@ export default function ManageTeachers() {
         </div>
       )}
 
-      {/* Details Modal */}
+      {/* Detail Modal */}
       {showDetailModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-md flex items-center justify-center z-50">
           <div className="bg-white/10 backdrop-blur-xl rounded-lg shadow-lg w-full max-w-xl p-6 relative border border-white/30 text-white">

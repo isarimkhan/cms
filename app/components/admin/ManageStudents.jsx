@@ -1,15 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { db } from "../../../lib/firebase";
+import {
+  collection,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  onSnapshot,
+} from "firebase/firestore";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 export default function ManageStudents() {
-  const [showForm, setShowForm] = useState(false);
   const [students, setStudents] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState(null);
   const [selectedClass, setSelectedClass] = useState(null);
+  const [editId, setEditId] = useState(null);
   const [grNumber, setGrNumber] = useState(1);
   const [previewImage, setPreviewImage] = useState(null);
-  const [selectedStudent, setSelectedStudent] = useState(null);
-  const [editIndex, setEditIndex] = useState(null); // ✅ Track student index for editing
 
   const [formData, setFormData] = useState({
     fullName: "",
@@ -30,47 +40,73 @@ export default function ManageStudents() {
 
   const classes = Array.from({ length: 10 }, (_, i) => `Class ${i + 1}`);
 
+  // ✅ Realtime fetch students
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, "students"), (snapshot) => {
+      const data = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setStudents(data);
+
+      // Auto update GR number
+      if (data.length > 0) {
+        const maxGr = Math.max(...data.map((s) => s.grNo || 0));
+        setGrNumber(maxGr + 1);
+      } else {
+        setGrNumber(1);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
   const handleInputChange = (e) => {
     const { name, value, files } = e.target;
     if (name === "photo") {
       const file = files[0];
-      setFormData({ ...formData, [name]: file });
-      setPreviewImage(URL.createObjectURL(file));
+      setFormData((prev) => ({ ...prev, [name]: file }));
+      setPreviewImage(file ? URL.createObjectURL(file) : null);
     } else {
-      setFormData({ ...formData, [name]: value });
+      setFormData((prev) => ({ ...prev, [name]: value }));
     }
   };
 
-  const handleAddOrUpdateStudent = () => {
-    if (!formData.class) {
-      alert("Please select a class.");
+  // 📸 Upload image to Storage
+  const uploadPhoto = async (file) => {
+    if (!file) return "";
+    const storage = getStorage();
+    const imageRef = ref(storage, `students/${Date.now()}_${file.name}`);
+    await uploadBytes(imageRef, file);
+    return await getDownloadURL(imageRef);
+  };
+
+  // ✅ Add or Update Student
+  const handleAddOrUpdateStudent = async () => {
+    if (!formData.fullName || !formData.class) {
+      alert("Please fill required fields (Name & Class)");
       return;
     }
 
-    let updatedStudents = [...students];
+    let imageUrl = formData.photo;
+    if (formData.photo instanceof File) {
+      imageUrl = await uploadPhoto(formData.photo);
+    }
 
-    if (editIndex !== null) {
-      // ✅ Editing existing student
-      updatedStudents[editIndex] = {
-        ...formData,
-        rollNo: updatedStudents[editIndex].rollNo,
-        grNo: updatedStudents[editIndex].grNo,
-      };
-      setStudents(updatedStudents);
-      setEditIndex(null);
+    if (editId) {
+      // ✍️ Update
+      const studentRef = doc(db, "students", editId);
+      await updateDoc(studentRef, { ...formData, photo: imageUrl });
+      setEditId(null);
     } else {
-      // 🆕 Adding new student
+      // 🆕 Add New
       const rollNoForClass =
         students.filter((s) => s.class === formData.class).length + 1;
 
       const newStudent = {
         ...formData,
-        rollNo: rollNoForClass,
         grNo: grNumber,
+        rollNo: rollNoForClass,
+        photo: imageUrl || "",
       };
 
-      updatedStudents.push(newStudent);
-      setStudents(updatedStudents);
+      await addDoc(collection(db, "students"), newStudent);
       setGrNumber(grNumber + 1);
     }
 
@@ -96,44 +132,24 @@ export default function ManageStudents() {
     });
     setPreviewImage(null);
     setShowForm(false);
+    setEditId(null);
   };
 
-  const handleDeleteStudent = (student) => {
+  const handleDeleteStudent = async (student) => {
     if (!confirm(`Delete student "${student.fullName}"?`)) return;
-
-    let updatedStudents = students.filter((s) => s.grNo !== student.grNo);
-
-    // 🧮 Adjust GR numbers and roll numbers
-    updatedStudents = updatedStudents
-      .map((s) => {
-        if (s.grNo > student.grNo) {
-          return { ...s, grNo: s.grNo - 1 };
-        }
-        return s;
-      })
-      .map((s) => {
-        if (s.class === student.class && s.rollNo > student.rollNo) {
-          return { ...s, rollNo: s.rollNo - 1 };
-        }
-        return s;
-      });
-
-    setStudents(updatedStudents);
-    setGrNumber(grNumber - 1);
+    await deleteDoc(doc(db, "students", student.id));
     setSelectedStudent(null);
   };
 
   const handleEditStudent = (student) => {
-    const index = students.findIndex((s) => s.grNo === student.grNo);
-    if (index !== -1) {
-      setFormData(student);
-      setPreviewImage(
-        student.photo ? URL.createObjectURL(student.photo) : null
-      );
-      setEditIndex(index);
-      setSelectedStudent(null);
-      setShowForm(true);
-    }
+    setFormData({
+      ...student,
+      photo: student.photo || null,
+    });
+    setPreviewImage(student.photo || null);
+    setEditId(student.id);
+    setSelectedStudent(null);
+    setShowForm(true);
   };
 
   const filteredStudents = selectedClass
@@ -142,14 +158,14 @@ export default function ManageStudents() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-black text-white flex">
+      {/* ================= Left Section ================= */}
       <div className="flex-1 p-4">
-        {/* Header */}
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold">📚 Manage Students</h1>
           <button
             onClick={() => {
+              resetForm();
               setShowForm(true);
-              setEditIndex(null);
             }}
             className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
           >
@@ -157,16 +173,16 @@ export default function ManageStudents() {
           </button>
         </div>
 
-        {/* Class List */}
-        <div className="flex gap-2 overflow-x-auto border-b pb-2 mb-4 scrollbar-thin scrollbar-thumb-blue-500 scrollbar-track-gray-800">
-          {classes.map((cls, index) => (
+        {/* Class Filter */}
+        <div className="flex gap-2 overflow-x-auto border-b pb-2 mb-4">
+          {classes.map((cls) => (
             <div
-              key={index}
+              key={cls}
               onClick={() => setSelectedClass(cls)}
-              className={`cursor-pointer px-4 py-2 rounded shadow whitespace-nowrap border ${
+              className={`cursor-pointer px-4 py-2 rounded shadow ${
                 selectedClass === cls
-                  ? "bg-blue-600 border-blue-400"
-                  : "bg-white/10 border-white/20 hover:bg-white/20"
+                  ? "bg-blue-600"
+                  : "bg-white/10 hover:bg-white/20"
               }`}
             >
               {cls}
@@ -174,28 +190,28 @@ export default function ManageStudents() {
           ))}
           <div
             onClick={() => setSelectedClass(null)}
-            className={`cursor-pointer px-4 py-2 rounded shadow whitespace-nowrap border ${
+            className={`cursor-pointer px-4 py-2 rounded shadow ${
               selectedClass === null
-                ? "bg-blue-600 border-blue-400"
-                : "bg-white/10 border-white/20 hover:bg-white/20"
+                ? "bg-blue-600"
+                : "bg-white/10 hover:bg-white/20"
             }`}
           >
             All
           </div>
         </div>
 
-        {/* Students List */}
+        {/* Student List */}
         {filteredStudents.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredStudents.map((student, index) => (
+            {filteredStudents.map((student) => (
               <div
-                key={index}
+                key={student.id}
                 onClick={() => setSelectedStudent(student)}
-                className="bg-white/10 border border-white/20 p-4 rounded shadow flex items-center gap-4 backdrop-blur-md cursor-pointer hover:bg-white/20 transition"
+                className="bg-white/10 p-4 rounded shadow flex gap-4 cursor-pointer hover:bg-white/20 transition"
               >
                 {student.photo && (
                   <img
-                    src={URL.createObjectURL(student.photo)}
+                    src={student.photo}
                     alt="Student"
                     className="w-16 h-16 rounded-full object-cover border-2 border-blue-400"
                   />
@@ -206,7 +222,6 @@ export default function ManageStudents() {
                   <p className="text-sm text-gray-300">
                     📌 Roll No: {student.rollNo} | 🆔 GR: {student.grNo}
                   </p>
-                  <p className="text-sm text-gray-300">{student.phone}</p>
                 </div>
               </div>
             ))}
@@ -218,12 +233,12 @@ export default function ManageStudents() {
         )}
       </div>
 
-      {/* Add/Edit Student Form Modal */}
+      {/* ================= Add / Edit Form ================= */}
       {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center backdrop-blur-sm z-50">
-          <div className="bg-white/10 border border-white/20 backdrop-blur-lg p-6 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-xl text-white">
+        <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-50">
+          <div className="bg-white/10 p-6 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold mb-4">
-              {editIndex !== null ? "✍️ Edit Student" : "Add New Student"}
+              {editId ? "✍️ Edit Student" : "➕ Add Student"}
             </h2>
 
             {previewImage && (
@@ -237,18 +252,15 @@ export default function ManageStudents() {
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {[
-                { label: "Full Name", name: "fullName", type: "text" },
-                { label: "Phone", name: "phone", type: "text" },
-                { label: "Email", name: "email", type: "email" },
-                { label: "Address", name: "address", type: "text" },
-              ].map((field) => (
-                <div key={field.name}>
-                  <label className="block mb-1 text-sm">{field.label}</label>
+              {["fullName", "phone", "email", "address"].map((name) => (
+                <div key={name}>
+                  <label className="block mb-1 text-sm capitalize">
+                    {name.replace(/([A-Z])/g, " $1")}
+                  </label>
                   <input
-                    type={field.type}
-                    name={field.name}
-                    value={formData[field.name]}
+                    type="text"
+                    name={name}
+                    value={formData[name]}
                     onChange={handleInputChange}
                     className="border border-white/30 p-2 rounded bg-transparent w-full"
                   />
@@ -264,8 +276,8 @@ export default function ManageStudents() {
                   className="border border-white/30 p-2 rounded bg-transparent text-white w-full"
                 >
                   <option value="">Select Class</option>
-                  {classes.map((cls, index) => (
-                    <option key={index} value={cls} className="text-black">
+                  {classes.map((cls) => (
+                    <option key={cls} value={cls} className="text-black">
                       {cls}
                     </option>
                   ))}
@@ -284,19 +296,21 @@ export default function ManageStudents() {
               </div>
 
               {[
-                { label: "Father's Name", name: "fatherName" },
-                { label: "Father's Phone", name: "fatherPhone" },
-                { label: "Father's Occupation", name: "fatherOccupation" },
-                { label: "Mother's Name", name: "motherName" },
-                { label: "Mother's Phone", name: "motherPhone" },
-                { label: "Mother's Occupation", name: "motherOccupation" },
-              ].map((field) => (
-                <div key={field.name}>
-                  <label className="block mb-1 text-sm">{field.label}</label>
+                "fatherName",
+                "fatherPhone",
+                "fatherOccupation",
+                "motherName",
+                "motherPhone",
+                "motherOccupation",
+              ].map((name) => (
+                <div key={name}>
+                  <label className="block mb-1 text-sm capitalize">
+                    {name.replace(/([A-Z])/g, " $1")}
+                  </label>
                   <input
                     type="text"
-                    name={field.name}
-                    value={formData[field.name]}
+                    name={name}
+                    value={formData[name]}
                     onChange={handleInputChange}
                     className="border border-white/30 p-2 rounded bg-transparent w-full"
                   />
@@ -315,21 +329,21 @@ export default function ManageStudents() {
                 onClick={handleAddOrUpdateStudent}
                 className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
               >
-                {editIndex !== null ? "Update" : "Add Student"}
+                {editId ? "Update" : "Add Student"}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Student Details Modal */}
+      {/* ================= Details Modal ================= */}
       {selectedStudent && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50">
-          <div className="bg-white/10 border border-white/20 p-6 rounded-lg max-w-lg w-full text-white">
+        <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-50">
+          <div className="bg-white/10 p-6 rounded-lg max-w-lg w-full text-white">
             <div className="flex justify-center mb-4">
               {selectedStudent.photo && (
                 <img
-                  src={URL.createObjectURL(selectedStudent.photo)}
+                  src={selectedStudent.photo}
                   alt="Student"
                   className="w-24 h-24 rounded-full object-cover border-2 border-blue-400"
                 />
@@ -347,11 +361,11 @@ export default function ManageStudents() {
               <p>🏠 <strong>Address:</strong> {selectedStudent.address}</p>
               <hr className="border-white/30 my-2" />
               <p>👨 <strong>Father:</strong> {selectedStudent.fatherName}</p>
-              <p>📞 <strong>Father Phone:</strong> {selectedStudent.fatherPhone}</p>
-              <p>💼 <strong>Father Occupation:</strong> {selectedStudent.fatherOccupation}</p>
+              <p>📞 {selectedStudent.fatherPhone}</p>
+              <p>💼 {selectedStudent.fatherOccupation}</p>
               <p>👩 <strong>Mother:</strong> {selectedStudent.motherName}</p>
-              <p>📞 <strong>Mother Phone:</strong> {selectedStudent.motherPhone}</p>
-              <p>💼 <strong>Mother Occupation:</strong> {selectedStudent.motherOccupation}</p>
+              <p>📞 {selectedStudent.motherPhone}</p>
+              <p>💼 {selectedStudent.motherOccupation}</p>
             </div>
             <div className="mt-4 flex justify-between">
               <button
