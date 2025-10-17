@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { db } from "../../../lib/firebase";
+import { db, storage } from "../../../lib/firebase";
 import {
   collection,
   addDoc,
@@ -9,8 +9,10 @@ import {
   deleteDoc,
   doc,
   onSnapshot,
+  getDocs,
+  writeBatch,
 } from "firebase/firestore";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 export default function ManageStudents() {
   const [students, setStudents] = useState([]);
@@ -40,13 +42,15 @@ export default function ManageStudents() {
 
   const classes = Array.from({ length: 10 }, (_, i) => `Class ${i + 1}`);
 
-  // ✅ Realtime fetch students
+  // 🔥 Realtime fetch students
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "students"), (snapshot) => {
-      const data = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+      let data = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+      // Sort students globally by GR No
+      data = data.sort((a, b) => (a.grNo || 0) - (b.grNo || 0));
       setStudents(data);
 
-      // Auto update GR number
       if (data.length > 0) {
         const maxGr = Math.max(...data.map((s) => s.grNo || 0));
         setGrNumber(maxGr + 1);
@@ -57,24 +61,75 @@ export default function ManageStudents() {
     return () => unsubscribe();
   }, []);
 
+  // 🖼️ Avatar
+  const renderAvatar = (student, size = 64) => {
+    const dimension = `${size}px`;
+
+    if (student.photo) {
+      return (
+        <img
+          src={student.photo}
+          alt={student.fullName}
+          style={{
+            width: dimension,
+            height: dimension,
+            borderRadius: "50%",
+            objectFit: "cover",
+            border: "2px solid #60A5FA",
+          }}
+        />
+      );
+    }
+
+    const initial = student.fullName
+      ? student.fullName.charAt(0).toUpperCase()
+      : "?";
+
+    return (
+      <div
+        style={{
+          width: dimension,
+          height: dimension,
+          borderRadius: "50%",
+          backgroundColor: "#2563EB",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: `${size / 2}px`,
+          fontWeight: "bold",
+          border: "2px solid #60A5FA",
+          color: "#fff",
+        }}
+      >
+        {initial}
+      </div>
+    );
+  };
+
+  // 📸 Handle input change
   const handleInputChange = (e) => {
     const { name, value, files } = e.target;
     if (name === "photo") {
       const file = files[0];
-      setFormData((prev) => ({ ...prev, [name]: file }));
+      setFormData((prev) => ({ ...prev, photo: file }));
       setPreviewImage(file ? URL.createObjectURL(file) : null);
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
   };
 
-  // 📸 Upload image to Storage
+  // ☁️ Upload Photo
   const uploadPhoto = async (file) => {
     if (!file) return "";
-    const storage = getStorage();
-    const imageRef = ref(storage, `students/${Date.now()}_${file.name}`);
-    await uploadBytes(imageRef, file);
-    return await getDownloadURL(imageRef);
+    
+    try {
+      const storageRef = ref(storage, `students/${Date.now()}_${file.name}`);
+      await uploadBytes(storageRef, file);
+      return await getDownloadURL(storageRef);
+    } catch (error) {
+      console.error("❌ Error uploading photo:", error);
+      return ""; // Return empty string if upload fails
+    }
   };
 
   // ✅ Add or Update Student
@@ -84,35 +139,47 @@ export default function ManageStudents() {
       return;
     }
 
-    let imageUrl = formData.photo;
-    if (formData.photo instanceof File) {
-      imageUrl = await uploadPhoto(formData.photo);
+    try {
+      let imageUrl = formData.photo || "";
+
+      // If photo is a File object, upload it
+      if (formData.photo instanceof File) {
+        imageUrl = await uploadPhoto(formData.photo);
+      }
+
+      if (editId) {
+        // Update existing student
+        const studentRef = doc(db, "students", editId);
+        await updateDoc(studentRef, {
+          ...formData,
+          photo: imageUrl,
+        });
+      } else {
+        // Add new student
+        const classStudents = students.filter(
+          (s) => s.class === formData.class
+        );
+        const rollNoForClass = classStudents.length + 1;
+
+        const newStudent = {
+          ...formData,
+          grNo: grNumber,
+          rollNo: rollNoForClass,
+          photo: imageUrl, // This will be either the uploaded URL or empty string
+        };
+
+        await addDoc(collection(db, "students"), newStudent);
+        setGrNumber(grNumber + 1);
+      }
+
+      resetForm();
+    } catch (error) {
+      console.error("❌ Error saving student:", error);
+      alert("Failed to save student: " + error.message);
     }
-
-    if (editId) {
-      // ✍️ Update
-      const studentRef = doc(db, "students", editId);
-      await updateDoc(studentRef, { ...formData, photo: imageUrl });
-      setEditId(null);
-    } else {
-      // 🆕 Add New
-      const rollNoForClass =
-        students.filter((s) => s.class === formData.class).length + 1;
-
-      const newStudent = {
-        ...formData,
-        grNo: grNumber,
-        rollNo: rollNoForClass,
-        photo: imageUrl || "",
-      };
-
-      await addDoc(collection(db, "students"), newStudent);
-      setGrNumber(grNumber + 1);
-    }
-
-    resetForm();
   };
 
+  // 🧼 Reset Form
   const resetForm = () => {
     setFormData({
       fullName: "",
@@ -133,33 +200,72 @@ export default function ManageStudents() {
     setPreviewImage(null);
     setShowForm(false);
     setEditId(null);
+    
+    // Clear file input
+    const fileInput = document.querySelector('input[type="file"]');
+    if (fileInput) fileInput.value = "";
   };
 
+  // 🗑️ Delete Student & Reorder Roll Numbers & GR Numbers
   const handleDeleteStudent = async (student) => {
     if (!confirm(`Delete student "${student.fullName}"?`)) return;
-    await deleteDoc(doc(db, "students", student.id));
-    setSelectedStudent(null);
+    try {
+      await deleteDoc(doc(db, "students", student.id));
+      await reorderNumbers();
+      setSelectedStudent(null);
+    } catch (error) {
+      console.error("❌ Error deleting student:", error);
+    }
   };
 
-  const handleEditStudent = (student) => {
-    setFormData({
-      ...student,
-      photo: student.photo || null,
+  // 📊 Reorder Roll Numbers (per class) & GR Numbers
+  const reorderNumbers = async () => {
+    const allDocs = await getDocs(collection(db, "students"));
+    const allData = allDocs.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+    // Sort globally for GR reassign
+    const sortedByGr = allData.sort((a, b) => (a.grNo || 0) - (b.grNo || 0));
+    const batch = writeBatch(db);
+
+    sortedByGr.forEach((student, index) => {
+      const studentRef = doc(db, "students", student.id);
+      batch.update(studentRef, { grNo: index + 1 });
     });
+
+    // Reorder roll numbers per class
+    classes.forEach((cls) => {
+      const classStudents = sortedByGr
+        .filter((s) => s.class === cls)
+        .sort((a, b) => a.rollNo - b.rollNo);
+
+      classStudents.forEach((student, idx) => {
+        const studentRef = doc(db, "students", student.id);
+        batch.update(studentRef, { rollNo: idx + 1 });
+      });
+    });
+
+    await batch.commit();
+  };
+
+  // ✍️ Edit Student
+  const handleEditStudent = (student) => {
+    setFormData({ ...student, photo: student.photo || null });
     setPreviewImage(student.photo || null);
     setEditId(student.id);
     setSelectedStudent(null);
     setShowForm(true);
   };
 
+  // 📊 Filter by class + sort
   const filteredStudents = selectedClass
-    ? students.filter((student) => student.class === selectedClass)
-    : students;
+    ? students
+        .filter((student) => student.class === selectedClass)
+        .sort((a, b) => (a.rollNo || 0) - (b.rollNo || 0))
+    : [...students].sort((a, b) => (a.grNo || 0) - (b.grNo || 0));
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-black text-white flex">
-      {/* ================= Left Section ================= */}
-      <div className="flex-1 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-black text-white flex flex-col overflow-y-auto">
+      <div className="flex-1 p-4 overflow-y-auto max-h-[calc(100vh-80px)] pb-20">
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold">📚 Manage Students</h1>
           <button
@@ -209,13 +315,7 @@ export default function ManageStudents() {
                 onClick={() => setSelectedStudent(student)}
                 className="bg-white/10 p-4 rounded shadow flex gap-4 cursor-pointer hover:bg-white/20 transition"
               >
-                {student.photo && (
-                  <img
-                    src={student.photo}
-                    alt="Student"
-                    className="w-16 h-16 rounded-full object-cover border-2 border-blue-400"
-                  />
-                )}
+                {renderAvatar(student, 50)}
                 <div>
                   <h2 className="text-lg font-semibold">{student.fullName}</h2>
                   <p className="text-sm text-gray-300">{student.class}</p>
@@ -233,23 +333,25 @@ export default function ManageStudents() {
         )}
       </div>
 
-      {/* ================= Add / Edit Form ================= */}
+      {/* ========== Add/Edit Form Modal ========== */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-50">
-          <div className="bg-white/10 p-6 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-50 overflow-y-auto">
+          <div className="bg-gray-800 p-6 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold mb-4">
               {editId ? "✍️ Edit Student" : "➕ Add Student"}
             </h2>
 
-            {previewImage && (
-              <div className="flex justify-center mb-4">
+            <div className="flex justify-center mb-4">
+              {previewImage ? (
                 <img
                   src={previewImage}
                   alt="Preview"
                   className="w-24 h-24 rounded-full object-cover border-2 border-blue-400"
                 />
-              </div>
-            )}
+              ) : (
+                renderAvatar({ fullName: formData.fullName }, 96)
+              )}
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {["fullName", "phone", "email", "address"].map((name) => (
@@ -336,18 +438,12 @@ export default function ManageStudents() {
         </div>
       )}
 
-      {/* ================= Details Modal ================= */}
+      {/* ========== Details Modal ========== */}
       {selectedStudent && (
-        <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-50">
+        <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-50 overflow-y-auto">
           <div className="bg-white/10 p-6 rounded-lg max-w-lg w-full text-white">
             <div className="flex justify-center mb-4">
-              {selectedStudent.photo && (
-                <img
-                  src={selectedStudent.photo}
-                  alt="Student"
-                  className="w-24 h-24 rounded-full object-cover border-2 border-blue-400"
-                />
-              )}
+              {renderAvatar(selectedStudent, 96)}
             </div>
             <h2 className="text-2xl font-bold text-center mb-4">
               {selectedStudent.fullName}

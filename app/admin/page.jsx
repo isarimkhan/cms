@@ -22,6 +22,7 @@ import ManageUsers from "../components/admin/ManageUsers";
 import AssignCourses from "../components/admin/AssignCourses";
 import ManageRoles from "../components/admin/ManageRoles";
 import Analytics from "../components/admin/Analytics";
+import ManageAdmins from "../components/admin/ManageAdmin";
 
 export default function AdminDashboard() {
   const [isOpen, setIsOpen] = useState(true);
@@ -31,6 +32,7 @@ export default function AdminDashboard() {
     { label: "Manage Courses", icon: <Book size={22} />, key: "courses" },
     { label: "Manage Teachers", icon: <Users size={22} />, key: "teachers" },
     { label: "Manage Students", icon: <GraduationCap size={22} />, key: "students" },
+    { label: "Manage Admins", icon: <UserCog size={22} />, key: "admin" },
     { label: "View Reports", icon: <ClipboardList size={22} />, key: "reports" },
     { label: "Manage Users", icon: <Users size={22} />, key: "users" },
     { label: "Assign Courses", icon: <Book size={22} />, key: "assign" },
@@ -46,6 +48,8 @@ export default function AdminDashboard() {
         return <ManageTeachers />;
       case "students":
         return <ManageStudents />;
+         case "admin":
+        return <ManageAdmins/>;
       case "reports":
         return <ViewReports />;
       case "users":
