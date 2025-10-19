@@ -32,7 +32,7 @@ export default function ManageAdmins() {
   // ✅ Department Options
   const departmentOptions = [
     "Main Administration Department",
-    "Principal / Vice Principal Office (School) or Registrar Office (University)",
+    "Principal / Vice Principal Office",
     "Admissions Department",
     "Examination & Records Department ",
     "Finance & Accounts Department",

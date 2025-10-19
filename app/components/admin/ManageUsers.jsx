@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { db } from "../../../lib/firebase";
 import { collection, getDocs, query, where } from "firebase/firestore";
+import { ShieldUser, Users } from "lucide-react";
 
 export default function ManageUsers() {
   const [view, setView] = useState(null);
@@ -14,7 +15,7 @@ export default function ManageUsers() {
 
   const departments = [
     "Main Administration Department",
-    "Principal / Vice Principal Office (School) or Registrar Office (University)",
+    "Principal / Vice Principal Office ",
     "Admissions Department",
     "Examination & Records Department",
     "Finance & Accounts Department",
@@ -134,9 +135,10 @@ export default function ManageUsers() {
 
   return (
     <div className="p-4 sm:p-6 text-black max-w-5xl mx-auto">
-      <h1 className="text-3xl sm:text-4xl font-bold mb-8 text-center bg-gradient-to-r text-white bg-clip-text ">
-        👥 Manage Users
-      </h1>
+        <h1 className="flex items-center justify-center gap-3 text-3xl sm:text-4xl font-bold mb-8 text-center bg-gradient-to-r  text-white px-4 py-2 rounded-lg ">
+  <ShieldUser size={40} />
+  Manage Users
+</h1>
 
       {/* Selection Buttons */}
       <div className="flex flex-wrap justify-center gap-3 mb-8">
