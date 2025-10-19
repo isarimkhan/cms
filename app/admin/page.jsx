@@ -20,7 +20,6 @@ import ManageStudents from "../components/admin/ManageStudents";
 import ViewReports from "../components/admin/ViewReports";
 import ManageUsers from "../components/admin/ManageUsers";
 import AssignCourses from "../components/admin/AssignCourses";
-import ManageRoles from "../components/admin/ManageRoles";
 import Analytics from "../components/admin/Analytics";
 import ManageAdmins from "../components/admin/ManageAdmin";
 
@@ -36,7 +35,6 @@ export default function AdminDashboard() {
     { label: "Manage Users", icon: <Users size={22} />, key: "users" },
     { label: "View Reports", icon: <ClipboardList size={22} />, key: "reports" },
     { label: "Assign Courses", icon: <Book size={22} />, key: "assign" },
-    { label: "Manage Roles", icon: <UserCog size={22} />, key: "roles" },
     { label: "Analytics", icon: <BarChart3 size={22} />, key: "analytics" },
   ];
 
@@ -56,8 +54,7 @@ export default function AdminDashboard() {
         return <ManageUsers />;
       case "assign":
         return <AssignCourses />;
-      case "roles":
-        return <ManageRoles />;
+    
       case "analytics":
         return <Analytics />;
       default:
