@@ -38,6 +38,7 @@ export default function ManageStudents() {
     motherPhone: "",
     motherOccupation: "",
     photo: null,
+    password: "", // NEW field for password
   });
 
   const classes = Array.from({ length: 10 }, (_, i) => `Class ${i + 1}`);
@@ -46,8 +47,6 @@ export default function ManageStudents() {
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "students"), (snapshot) => {
       let data = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-
-      // Sort students globally by GR No
       data = data.sort((a, b) => (a.grNo || 0) - (b.grNo || 0));
       setStudents(data);
 
@@ -61,10 +60,8 @@ export default function ManageStudents() {
     return () => unsubscribe();
   }, []);
 
-  // 🖼️ Avatar
   const renderAvatar = (student, size = 64) => {
     const dimension = `${size}px`;
-
     if (student.photo) {
       return (
         <img
@@ -80,11 +77,7 @@ export default function ManageStudents() {
         />
       );
     }
-
-    const initial = student.fullName
-      ? student.fullName.charAt(0).toUpperCase()
-      : "?";
-
+    const initial = student.fullName ? student.fullName.charAt(0).toUpperCase() : "?";
     return (
       <div
         style={{
@@ -106,7 +99,6 @@ export default function ManageStudents() {
     );
   };
 
-  // 📸 Handle input change
   const handleInputChange = (e) => {
     const { name, value, files } = e.target;
     if (name === "photo") {
@@ -118,17 +110,15 @@ export default function ManageStudents() {
     }
   };
 
-  // ☁️ Upload Photo
   const uploadPhoto = async (file) => {
     if (!file) return "";
-    
     try {
       const storageRef = ref(storage, `students/${Date.now()}_${file.name}`);
       await uploadBytes(storageRef, file);
       return await getDownloadURL(storageRef);
     } catch (error) {
       console.error("❌ Error uploading photo:", error);
-      return ""; // Return empty string if upload fails
+      return "";
     }
   };
 
@@ -141,8 +131,6 @@ export default function ManageStudents() {
 
     try {
       let imageUrl = formData.photo || "";
-
-      // If photo is a File object, upload it
       if (formData.photo instanceof File) {
         imageUrl = await uploadPhoto(formData.photo);
       }
@@ -155,17 +143,19 @@ export default function ManageStudents() {
           photo: imageUrl,
         });
       } else {
-        // Add new student
-        const classStudents = students.filter(
-          (s) => s.class === formData.class
-        );
+        // Auto-generate password: first name + @123
+        const firstName = formData.fullName.split(" ")[0];
+        const password = firstName + "@123";
+
+        const classStudents = students.filter((s) => s.class === formData.class);
         const rollNoForClass = classStudents.length + 1;
 
         const newStudent = {
           ...formData,
           grNo: grNumber,
           rollNo: rollNoForClass,
-          photo: imageUrl, // This will be either the uploaded URL or empty string
+          photo: imageUrl,
+          password, // add password
         };
 
         await addDoc(collection(db, "students"), newStudent);
@@ -179,7 +169,6 @@ export default function ManageStudents() {
     }
   };
 
-  // 🧼 Reset Form
   const resetForm = () => {
     setFormData({
       fullName: "",
@@ -196,17 +185,15 @@ export default function ManageStudents() {
       motherPhone: "",
       motherOccupation: "",
       photo: null,
+      password: "",
     });
     setPreviewImage(null);
     setShowForm(false);
     setEditId(null);
-    
-    // Clear file input
     const fileInput = document.querySelector('input[type="file"]');
     if (fileInput) fileInput.value = "";
   };
 
-  // 🗑️ Delete Student & Reorder Roll Numbers & GR Numbers
   const handleDeleteStudent = async (student) => {
     if (!confirm(`Delete student "${student.fullName}"?`)) return;
     try {
@@ -218,12 +205,10 @@ export default function ManageStudents() {
     }
   };
 
-  // 📊 Reorder Roll Numbers (per class) & GR Numbers
   const reorderNumbers = async () => {
     const allDocs = await getDocs(collection(db, "students"));
     const allData = allDocs.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-    // Sort globally for GR reassign
     const sortedByGr = allData.sort((a, b) => (a.grNo || 0) - (b.grNo || 0));
     const batch = writeBatch(db);
 
@@ -232,7 +217,6 @@ export default function ManageStudents() {
       batch.update(studentRef, { grNo: index + 1 });
     });
 
-    // Reorder roll numbers per class
     classes.forEach((cls) => {
       const classStudents = sortedByGr
         .filter((s) => s.class === cls)
@@ -247,7 +231,6 @@ export default function ManageStudents() {
     await batch.commit();
   };
 
-  // ✍️ Edit Student
   const handleEditStudent = (student) => {
     setFormData({ ...student, photo: student.photo || null });
     setPreviewImage(student.photo || null);
@@ -256,7 +239,6 @@ export default function ManageStudents() {
     setShowForm(true);
   };
 
-  // 📊 Filter by class + sort
   const filteredStudents = selectedClass
     ? students
         .filter((student) => student.class === selectedClass)
@@ -455,6 +437,7 @@ export default function ManageStudents() {
               <p>📞 <strong>Phone:</strong> {selectedStudent.phone}</p>
               <p>📧 <strong>Email:</strong> {selectedStudent.email}</p>
               <p>🏠 <strong>Address:</strong> {selectedStudent.address}</p>
+              <p>🔑 <strong>Password:</strong> {selectedStudent.password}</p> {/* NEW */}
               <hr className="border-white/30 my-2" />
               <p>👨 <strong>Father:</strong> {selectedStudent.fatherName}</p>
               <p>📞 {selectedStudent.fatherPhone}</p>

@@ -15,8 +15,10 @@ import {
 export default function ManageAdmins() {
   const [admins, setAdmins] = useState([]);
   const [showModal, setShowModal] = useState(false);
+  const [showDetails, setShowDetails] = useState(false); // New state for details modal
   const [isEditing, setIsEditing] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
+  const [selectedAdmin, setSelectedAdmin] = useState(null); // For showing details
 
   const [formData, setFormData] = useState({
     firstName: "",
@@ -27,23 +29,22 @@ export default function ManageAdmins() {
     salary: "",
     file: null,
     picture: "",
+    password: "",
   });
 
-  // ✅ Department Options
   const departmentOptions = [
     "Main Administration Department",
     "Principal / Vice Principal Office",
     "Admissions Department",
-    "Examination & Records Department ",
+    "Examination & Records Department",
     "Finance & Accounts Department",
-    "Human Resources (HR) Department ",
+    "Human Resources (HR) Department",
     "IT & Technical Support Department",
     "Transport Department",
     "Library Department",
     "Student Affairs Department",
   ];
 
-  // ✅ Fetch Admins
   const fetchAdmins = async () => {
     const snapshot = await getDocs(collection(db, "admins"));
     const data = snapshot.docs.map((doc) => ({
@@ -57,7 +58,6 @@ export default function ManageAdmins() {
     fetchAdmins();
   }, []);
 
-  // ✅ Handle input
   const handleChange = (e) => {
     if (e.target.name === "file") {
       setFormData({ ...formData, file: e.target.files[0] });
@@ -66,9 +66,9 @@ export default function ManageAdmins() {
     }
   };
 
-  // ✅ Add Admin
   const handleAdd = async (e) => {
     e.preventDefault();
+    const password = formData.firstName ? formData.firstName + "@123" : "@123";
     const pictureURL = formData.file ? URL.createObjectURL(formData.file) : "";
 
     await addDoc(collection(db, "admins"), {
@@ -79,6 +79,7 @@ export default function ManageAdmins() {
       department: formData.department,
       salary: formData.salary,
       picture: pictureURL,
+      password,
     });
 
     resetForm();
@@ -86,7 +87,6 @@ export default function ManageAdmins() {
     fetchAdmins();
   };
 
-  // ✅ Edit Admin
   const handleEdit = (admin) => {
     setIsEditing(true);
     setSelectedId(admin.id);
@@ -99,6 +99,7 @@ export default function ManageAdmins() {
       salary: admin.salary,
       file: null,
       picture: admin.picture,
+      password: admin.password || "",
     });
     setShowModal(true);
   };
@@ -106,9 +107,7 @@ export default function ManageAdmins() {
   const handleUpdate = async (e) => {
     e.preventDefault();
     const adminRef = doc(db, "admins", selectedId);
-    const pictureURL = formData.file
-      ? URL.createObjectURL(formData.file)
-      : formData.picture;
+    const pictureURL = formData.file ? URL.createObjectURL(formData.file) : formData.picture;
 
     await updateDoc(adminRef, {
       firstName: formData.firstName,
@@ -118,6 +117,7 @@ export default function ManageAdmins() {
       department: formData.department,
       salary: formData.salary,
       picture: pictureURL,
+      password: formData.password,
     });
 
     resetForm();
@@ -126,7 +126,6 @@ export default function ManageAdmins() {
     fetchAdmins();
   };
 
-  // ✅ Delete Admin
   const handleDelete = async (id) => {
     await deleteDoc(doc(db, "admins", id));
     fetchAdmins();
@@ -142,7 +141,14 @@ export default function ManageAdmins() {
       salary: "",
       file: null,
       picture: "",
+      password: "",
     });
+  };
+
+  // ✅ Show admin details
+  const handleShowDetails = (admin) => {
+    setSelectedAdmin(admin);
+    setShowDetails(true);
   };
 
   return (
@@ -163,9 +169,12 @@ export default function ManageAdmins() {
         {admins.map((admin) => (
           <div
             key={admin.id}
-            className="bg-white/20 backdrop-blur-lg p-4 rounded-lg shadow-lg flex items-center justify-between"
+            className="bg-white/20 backdrop-blur-lg p-4 rounded-lg shadow-lg flex items-center justify-between cursor-pointer"
           >
-            <div className="flex items-center gap-4">
+            <div
+              className="flex items-center gap-4"
+              onClick={() => handleShowDetails(admin)} // Click to show details
+            >
               {admin.picture ? (
                 <img
                   src={admin.picture}
@@ -224,7 +233,8 @@ export default function ManageAdmins() {
               onSubmit={isEditing ? handleUpdate : handleAdd}
               className="space-y-3"
             >
-              {/* First and Last Name */}
+              {/* Form Fields same as before */}
+              {/* First Name, Last Name, Phone, Email, Department, Salary, File Upload */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium mb-1">
@@ -255,8 +265,6 @@ export default function ManageAdmins() {
                   />
                 </div>
               </div>
-
-              {/* Phone */}
               <div>
                 <label className="block text-sm font-medium mb-1">
                   Phone Number
@@ -271,8 +279,6 @@ export default function ManageAdmins() {
                   className="border p-2 rounded w-full text-black"
                 />
               </div>
-
-              {/* Email */}
               <div>
                 <label className="block text-sm font-medium mb-1">
                   Email Address
@@ -287,8 +293,6 @@ export default function ManageAdmins() {
                   className="border p-2 rounded w-full text-black"
                 />
               </div>
-
-              {/* Department Dropdown */}
               <div>
                 <label className="block text-sm font-medium mb-1">
                   Department
@@ -308,8 +312,6 @@ export default function ManageAdmins() {
                   ))}
                 </select>
               </div>
-
-              {/* Salary */}
               <div>
                 <label className="block text-sm font-medium mb-1">Salary</label>
                 <input
@@ -322,8 +324,6 @@ export default function ManageAdmins() {
                   className="border p-2 rounded w-full text-black"
                 />
               </div>
-
-              {/* File Upload */}
               <div>
                 <label className="block text-sm font-medium mb-1">
                   Upload Photo
@@ -336,8 +336,6 @@ export default function ManageAdmins() {
                   className="border p-2 rounded w-full"
                 />
               </div>
-
-              {/* Submit Button */}
               <button
                 type="submit"
                 className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
@@ -345,6 +343,40 @@ export default function ManageAdmins() {
                 {isEditing ? "Update Admin" : "Add Admin"}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ Admin Details Modal */}
+      {showDetails && selectedAdmin && (
+        <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-50">
+          <div className="bg-white p-6 rounded-lg w-full max-w-md relative">
+            <button
+              onClick={() => setShowDetails(false)}
+              className="absolute top-3 right-3 text-gray-600 hover:text-black"
+            >
+              <X size={20} />
+            </button>
+            <h2 className="text-xl font-bold mb-4">Admin Details</h2>
+            <div className="flex flex-col items-center gap-3">
+              {selectedAdmin.picture ? (
+                <img
+                  src={selectedAdmin.picture}
+                  alt="Admin"
+                  className="w-24 h-24 rounded-full object-cover border-2 border-gray-300"
+                />
+              ) : (
+                <div className="w-24 h-24 rounded-full bg-blue-600 flex items-center justify-center text-white text-3xl font-bold">
+                  {selectedAdmin.firstName?.charAt(0)}
+                </div>
+              )}
+              <p><strong>Name:</strong> {selectedAdmin.firstName} {selectedAdmin.lastName}</p>
+              <p><strong>Phone:</strong> {selectedAdmin.phone}</p>
+              <p><strong>Email:</strong> {selectedAdmin.email}</p>
+              <p><strong>Department:</strong> {selectedAdmin.department}</p>
+              <p><strong>Salary:</strong> {selectedAdmin.salary}</p>
+              <p><strong>Password:</strong> {selectedAdmin.password}</p>
+            </div>
           </div>
         </div>
       )}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, X, Pencil, Trash2 } from "lucide-react";
+import { Plus, X, Pencil, Trash2, Eye, EyeOff } from "lucide-react";
 import { db } from "../../../lib/firebase";
 import {
   collection,
@@ -17,6 +17,7 @@ export default function ManageTeachers() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [showPassword, setShowPassword] = useState({});
 
   const [formData, setFormData] = useState({
     id: null,
@@ -33,7 +34,7 @@ export default function ManageTeachers() {
     file: null,
   });
 
-  // ✅ Real-time Listener
+  // Real-time listener
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "teachers"), (snapshot) => {
       const data = snapshot.docs.map((d) => ({
@@ -45,12 +46,37 @@ export default function ManageTeachers() {
     return () => unsubscribe();
   }, []);
 
-  // ✅ Add New Teacher to Firestore
+  // Toggle password visibility
+  const togglePassword = (id) => {
+    setShowPassword((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  // Reset form
+  const resetForm = () => {
+    setFormData({
+      id: null,
+      firstName: "",
+      lastName: "",
+      email: "",
+      phone: "",
+      address: "",
+      education: "",
+      dob: "",
+      salary: "",
+      dutyTime: "Full Time",
+      picture: "",
+      file: null,
+    });
+  };
+
+  // Add Teacher (password auto-generated, no alert)
   const handleAddTeacher = async () => {
     if (!formData.firstName || !formData.lastName) {
       alert("Please fill all required fields");
       return;
     }
+
+    const password = `${formData.firstName}@123`;
 
     const newTeacher = {
       firstName: formData.firstName,
@@ -62,10 +88,10 @@ export default function ManageTeachers() {
       dob: formData.dob,
       salary: formData.salary,
       dutyTime: formData.dutyTime,
-      picture:
-        formData.file && typeof formData.file !== "string"
-          ? URL.createObjectURL(formData.file)
-          : formData.picture,
+      picture: formData.file
+        ? URL.createObjectURL(formData.file)
+        : formData.picture,
+      password: password, // saved directly to database
     };
 
     await addDoc(collection(db, "teachers"), newTeacher);
@@ -73,7 +99,7 @@ export default function ManageTeachers() {
     setShowAddModal(false);
   };
 
-  // ✅ Update Teacher
+  // Update Teacher
   const handleUpdateTeacher = async () => {
     const teacherRef = doc(db, "teachers", formData.id);
 
@@ -90,13 +116,13 @@ export default function ManageTeachers() {
     setIsEditing(false);
   };
 
-  // ✅ Delete Teacher
+  // Delete Teacher
   const handleDeleteTeacher = async (id) => {
     await deleteDoc(doc(db, "teachers", id));
     setShowDetailModal(null);
   };
 
-  // ✅ Edit Flow
+  // Edit Flow
   const handleEdit = (teacher) => {
     setFormData({
       ...teacher,
@@ -104,24 +130,6 @@ export default function ManageTeachers() {
     });
     setIsEditing(true);
     setShowAddModal(true);
-  };
-
-  // ✅ Reset Form
-  const resetForm = () => {
-    setFormData({
-      id: null,
-      firstName: "",
-      lastName: "",
-      email: "",
-      phone: "",
-      address: "",
-      education: "",
-      dob: "",
-      salary: "",
-      dutyTime: "Full Time",
-      picture: "",
-      file: null,
-    });
   };
 
   return (
@@ -149,6 +157,8 @@ export default function ManageTeachers() {
               </h2>
               <p className="opacity-80">{teacher.email}</p>
               <p className="opacity-60 text-sm">{teacher.dutyTime}</p>
+
+            
             </div>
           ))}
         </div>
@@ -210,9 +220,7 @@ export default function ManageTeachers() {
                   key={key}
                   className={colSpan === 2 ? "col-span-2" : undefined}
                 >
-                  <label className="block mb-1 text-sm opacity-80">
-                    {label}
-                  </label>
+                  <label className="block mb-1 text-sm opacity-80">{label}</label>
                   <input
                     type="text"
                     value={formData[key]}
@@ -254,9 +262,7 @@ export default function ManageTeachers() {
 
               {/* Duty Time */}
               <div className="col-span-2">
-                <label className="block mb-1 text-sm opacity-80">
-                  Duty Time
-                </label>
+                <label className="block mb-1 text-sm opacity-80">Duty Time</label>
                 <select
                   value={formData.dutyTime}
                   onChange={(e) =>
@@ -333,6 +339,26 @@ export default function ManageTeachers() {
               <p className="mb-1 opacity-90">
                 Duty Time: {showDetailModal.dutyTime}
               </p>
+
+              {/* Password */}
+              {showDetailModal.password && (
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="font-mono">
+                    {showPassword[showDetailModal.id]
+                      ? showDetailModal.password
+                      : "••••••••"}
+                  </span>
+                  <button
+                    onClick={() => togglePassword(showDetailModal.id)}
+                  >
+                    {showPassword[showDetailModal.id] ? (
+                      <EyeOff size={18} />
+                    ) : (
+                      <Eye size={18} />
+                    )}
+                  </button>
+                </div>
+              )}
 
               <div className="mt-4 flex gap-3">
                 <button
