@@ -10,6 +10,7 @@ import {
   BarChart3,
   Menu,
   ChevronLeft,
+  CalendarCheck,
 } from "lucide-react";
 import Header from "../components/header";
 
@@ -17,7 +18,7 @@ import Header from "../components/header";
 import ManageCourses from "../components/admin/ManageCourses";
 import ManageTeachers from "../components/admin/ManageTeachers";
 import ManageStudents from "../components/admin/ManageStudents";
-import ViewReports from "../components/admin/ViewReports";
+import ViewAttendance from "../components/admin/ViewAttendance";
 import ManageUsers from "../components/admin/ManageUsers";
 import AssignCourses from "../components/admin/AssignCourses";
 import Analytics from "../components/admin/Analytics";
@@ -33,7 +34,7 @@ export default function AdminDashboard() {
     { label: "Manage Students", icon: <GraduationCap size={22} />, key: "students" },
     { label: "Manage Admins", icon: <UserCog size={22} />, key: "admin" },
     { label: "Manage Users", icon: <Users size={22} />, key: "users" },
-    { label: "View Reports", icon: <ClipboardList size={22} />, key: "reports" },
+    { label: "View Attendance", icon:  <CalendarCheck size={22} />, key: "reports" },
     { label: "Assign Courses", icon: <Book size={22} />, key: "assign" },
     { label: "Analytics", icon: <BarChart3 size={22} />, key: "analytics" },
   ];
@@ -49,7 +50,7 @@ export default function AdminDashboard() {
          case "admin":
         return <ManageAdmins/>;
       case "reports":
-        return <ViewReports />;
+        return <ViewAttendance />;
       case "users":
         return <ManageUsers />;
       case "assign":

@@ -11,7 +11,7 @@ import {
   updateDoc,
   addDoc,
 } from "firebase/firestore";
-import { ShieldUser, Eye, EyeOff } from "lucide-react";
+import { ShieldUser } from "lucide-react";
 
 export default function ManageUsers() {
   const [view, setView] = useState(null);
@@ -19,20 +19,18 @@ export default function ManageUsers() {
   const [teachers, setTeachers] = useState([]);
   const [students, setStudents] = useState([]);
   const [selectedClass, setSelectedClass] = useState("");
-  const [showPassword, setShowPassword] = useState({});
 
-  const departments = [
-    "Main Administration Department",
-    "Principal / Vice Principal Office ",
-    "Admissions Department",
-    "Examination & Records Department",
-    "Finance & Accounts Department",
-    "Human Resources (HR) Department",
-    "IT & Technical Support Department",
-    "Transport Department",
-    "Library Department",
-    "Student Affairs Department",
-  ];
+  // Change Password Modal
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [selectedUser, setSelectedUser] = useState(null);
+
+  // Message Modal (Success / Error)
+  const [messageModal, setMessageModal] = useState({
+    show: false,
+    text: "",
+    type: "success", // success | error
+  });
 
   const classes = [
     "Class 1","Class 2","Class 3","Class 4","Class 5",
@@ -61,45 +59,55 @@ export default function ManageUsers() {
     fetchTeachers();
   }, []);
 
-  /* ================= PASSWORD LOGIC ================= */
-  const generateAndSavePassword = async (user, collectionName, userType) => {
-    const password = `${user.firstName || user.fullName?.split(" ")[0]}@123`;
+  /* ================= CHANGE PASSWORD ================= */
+  const openPasswordModal = (user, collectionName, userType) => {
+    setSelectedUser({ user, collectionName, userType });
+    setNewPassword("");
+    setShowPasswordModal(true);
+  };
+
+  const updatePassword = async () => {
+    if (!newPassword) {
+      return showMessage("Please enter a password", "error");
+    }
 
     try {
-      // Optional: update user's own doc
-      await updateDoc(doc(db, collectionName, user.id), { password });
+      await updateDoc(
+        doc(db, selectedUser.collectionName, selectedUser.user.id),
+        { password: newPassword }
+      );
 
-      // Save in separate "passwords" collection
       await addDoc(collection(db, "passwords"), {
-        userId: user.id,
-        userType: userType,
-        password,
+        userId: selectedUser.user.id,
+        userType: selectedUser.userType,
+        password: newPassword,
         timestamp: new Date(),
       });
 
-      // Refresh UI
-      if (collectionName === "admins") fetchAdmins();
-      if (collectionName === "teachers") fetchTeachers();
-      if (collectionName === "students") fetchStudents(selectedClass);
+      if (selectedUser.collectionName === "admins") fetchAdmins();
+      if (selectedUser.collectionName === "teachers") fetchTeachers();
+      if (selectedUser.collectionName === "students") fetchStudents(selectedClass);
 
-      alert("Password generated & saved in separate collection!");
+      setShowPasswordModal(false);
+      showMessage("Password updated successfully", "success");
     } catch (err) {
-      alert("Failed to save password: " + err.message);
+      showMessage(err.message, "error");
     }
   };
 
-  const togglePassword = (id) => {
-    setShowPassword(prev => ({ ...prev, [id]: !prev[id] }));
+  /* ================= MESSAGE MODAL ================= */
+  const showMessage = (text, type) => {
+    setMessageModal({ show: true, text, type });
   };
 
   /* ================= UI COMPONENTS ================= */
   const Button = ({ label, onClick, active }) => (
     <button
       onClick={onClick}
-      className={`px-5 py-2 rounded-full font-semibold transition ${
+      className={`px-6 py-2 rounded-full font-semibold transition ${
         active
           ? "bg-blue-600 text-white"
-          : "bg-gray-200 hover:bg-blue-500 hover:text-white"
+          : "bg-white/20 text-white hover:bg-blue-500"
       }`}
     >
       {label}
@@ -107,28 +115,21 @@ export default function ManageUsers() {
   );
 
   const PasswordCell = ({ user, collectionName, userType }) => (
-    <div className="flex items-center gap-2">
-      <span className="font-mono">
-        {showPassword[user.id] ? user.password || "Not Set" : "••••••••"}
-      </span>
-
-      <button onClick={() => togglePassword(user.id)}>
-        {showPassword[user.id] ? <EyeOff size={18} /> : <Eye size={18} />}
-      </button>
-
+    <div className="flex items-center gap-4">
+      <span className="font-mono">{user.password || "Not Set"}</span>
       <button
-        onClick={() => generateAndSavePassword(user, collectionName, userType)}
-        className="text-blue-600 font-semibold"
+        onClick={() => openPasswordModal(user, collectionName, userType)}
+        className="px-3 py-1 rounded bg-yellow-500 text-black font-semibold"
       >
-        Generate
+        Change Password
       </button>
     </div>
   );
 
   const Table = ({ headers, rows }) => (
-    <div className="overflow-x-auto rounded-md border mt-4">
-      <table className="w-full">
-        <thead className="bg-blue-600 text-white">
+    <div className="overflow-x-auto mt-4 border border-white/30 rounded-lg">
+      <table className="w-full text-white">
+        <thead className="border-b border-white/30">
           <tr>
             {headers.map((h, i) => (
               <th key={i} className="p-3 text-left">{h}</th>
@@ -138,7 +139,7 @@ export default function ManageUsers() {
         <tbody>
           {rows.length ? (
             rows.map((row, i) => (
-              <tr key={i} className="even:bg-gray-50">
+              <tr key={i} className="border-b border-white/20">
                 {row.map((cell, j) => (
                   <td key={j} className="p-3">{cell}</td>
                 ))}
@@ -158,8 +159,9 @@ export default function ManageUsers() {
 
   /* ================= RENDER ================= */
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <h1 className="flex items-center justify-center gap-3 text-4xl font-bold mb-8 bg-blue-600 text-white p-3 rounded-lg">
+    <div className="p-6 max-w-5xl mx-auto text-white">
+
+      <h1 className="flex justify-center gap-3 text-4xl font-bold mb-8 p-4 rounded-lg">
         <ShieldUser size={40} /> Manage Users
       </h1>
 
@@ -169,10 +171,8 @@ export default function ManageUsers() {
         <Button label="Student" active={view==="student"} onClick={()=>setView("student")} />
       </div>
 
-      {/* ADMIN */}
       {view === "admin" && (
-        <Table
-          headers={["Name", "Email", "Password"]}
+        <Table headers={["Name","Email","Password"]}
           rows={admins.map(a => [
             `${a.firstName} ${a.lastName}`,
             a.email,
@@ -181,10 +181,8 @@ export default function ManageUsers() {
         />
       )}
 
-      {/* TEACHER */}
       {view === "teacher" && (
-        <Table
-          headers={["Name", "Email", "Password"]}
+        <Table headers={["Name","Email","Password"]}
           rows={teachers.map(t => [
             `${t.firstName} ${t.lastName}`,
             t.email,
@@ -193,23 +191,23 @@ export default function ManageUsers() {
         />
       )}
 
-      {/* STUDENT */}
       {view === "student" && (
         <>
           <select
-            className="border p-2 rounded mb-4"
+            className="border border-white/30 bg-transparent p-2 rounded mb-4"
             value={selectedClass}
             onChange={(e) => {
               setSelectedClass(e.target.value);
               fetchStudents(e.target.value);
             }}
           >
-            <option value="">Select Class</option>
-            {classes.map(c => <option key={c}>{c}</option>)}
+            <option value="" className="text-black">Select Class</option>
+            {classes.map(c => (
+              <option key={c} value={c} className="text-black">{c}</option>
+            ))}
           </select>
 
-          <Table
-            headers={["Name", "Email", "Password"]}
+          <Table headers={["Name","Email","Password"]}
             rows={students.map(s => [
               s.fullName,
               s.email,
@@ -218,6 +216,47 @@ export default function ManageUsers() {
           />
         </>
       )}
+
+      {/* CHANGE PASSWORD MODAL */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-white text-black p-6 rounded-lg w-96">
+            <h2 className="text-xl font-bold mb-4 text-center">Change Password</h2>
+            <input
+              className="w-full border p-2 rounded mb-4"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="Enter new password"
+            />
+            <div className="flex justify-end gap-3">
+              <button onClick={()=>setShowPasswordModal(false)}>Cancel</button>
+              <button onClick={updatePassword} className="bg-blue-600 text-white px-4 py-2 rounded">
+                Update
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MESSAGE MODAL */}
+      {messageModal.show && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className={`p-6 rounded-lg w-96 text-center ${
+            messageModal.type === "success" ? "bg-green-100" : "bg-red-600"
+          }`}>
+            <p className="text-white font-semibold mb-4">
+              {messageModal.text}
+            </p>
+            <button
+              onClick={() => setMessageModal({ ...messageModal, show: false })}
+              className="bg-white text-black px-4 py-2 rounded"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
